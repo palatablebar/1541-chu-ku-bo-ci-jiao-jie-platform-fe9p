@@ -149,3 +149,14 @@ tr:hover td { background: var(--wash); }
 .watch .signal span:last-child { text-align: right; color: var(--accent); }
 .watch .panel-head h2 { font-size: 15px; }
 .watch .presentation .measure-unit { color: var(--accent); }
+
+/* 当班增援单 */
+.watch .scenario.reinforce { margin-block-start: 10px; border-style: dashed; }
+.watch .reinforce-panel { margin-block: var(--gap) 0; }
+.watch .reinforce-panel .kpis { grid-template-columns: repeat(7, minmax(0, 1fr)); margin: 0; }
+.watch .reinforce-panel .table-scroll { padding: 0 var(--pad) var(--pad); max-height: 420px; overflow: auto; }
+.state[data-state="已增援"] { background: #2e5d46; color: #d8f3e2; }
+.state[data-state="不增援"] { background: #3a4750; color: var(--quiet); }
+@media (max-width: 900px) {
+  .watch .reinforce-panel .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

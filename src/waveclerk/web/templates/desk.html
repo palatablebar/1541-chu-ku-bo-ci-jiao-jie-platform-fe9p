@@ -43,6 +43,20 @@
         <select id="mode"><option value="balanced">分区均衡</option><option value="focus">集中复核</option></select>
         <button type="submit" id="apply" disabled>复算安排</button>
       </form>
+      <form id="reinforce-form" class="scenario reinforce">
+        <div class="scenario-label"><strong>当班增援单</strong><span>按主管填报机动人数 · 沿用本班回归与校准</span></div>
+        <label for="flex-workers">机动人数</label>
+        <input type="number" id="flex-workers" min="1" max="30" step="1" value="8" required>
+        <button type="submit" id="reinforce-apply">生成增援单</button>
+      </form>
+      <section id="reinforce-panel" class="panel reinforce-panel" hidden aria-labelledby="reinforce-title">
+        <div class="panel-head">
+          <h2 id="reinforce-title">当班增援单</h2>
+          <span class="detail-note">凭证 <code id="reinforce-stamp">—</code></span>
+        </div>
+        <dl class="kpis" id="reinforce-kpis" aria-label="增援摘要"></dl>
+        <div id="reinforce-rows" class="table-scroll"></div>
+      </section>
       <dl class="kpis" id="kpis" aria-label="本班摘要"></dl>
       <div class="desk-grid">
 <section class="panel presentation" aria-labelledby="visual-title">

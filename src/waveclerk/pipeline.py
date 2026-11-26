@@ -10,6 +10,8 @@ from .completion_bands import service as calibration_service
 from .order_mix import service as monitor_service
 from .aisle_dispatch import service as dispatch_service
 from .wave_recap import service as audit_service
+from .reinforce import service as reinforce_service
+from .reinforce.evidence import order_payload, reconciliation_evidence
 from .shift_vintage import contracts as window_contract
 
 PRESET = Path(__file__).resolve().parents[2] / 'sample_data' / 'pick_manifests_sample.json'
@@ -176,3 +178,32 @@ def execute(documents, capacity=12, mode='balanced', *, as_of=96):
 def preview(capacity=12, mode='balanced'):
     fixture = open_fixture()
     return execute(fixture['records'], capacity, mode, as_of=fixture['as_of'])
+
+
+def reinforce(documents, flex_workers, *, as_of=96):
+    """按主管填报的机动人数，沿用本班冻结回归与校准出当班增援单。"""
+    if type(flex_workers) is not int or not 1 <= flex_workers <= 30:
+        raise ValueError('机动人数须是 1 到 30 的整数')
+    intake, windows, state = worksheet(documents, as_of)
+    features = feature_service.transform_windows(windows, state)
+    kernel, fitted_calibration, (_recent, shift) = calibrate_cell(features, state)
+    _scored, checked_live = shift
+    # 基础处置只取规则层裁决（暂停/人工/候选/观察），与工位额度无关；
+    # 人工判读名单沿用与主链路相同的分布漂移扫描。
+    baseline = monitor_service.fit_baseline(features.train, state.fingerprint)
+    drift = monitor_service.scan_current(baseline, features.live, state.fingerprint)
+    base_policy = dispatch_service.Policy.select(12, 'balanced')
+    base_jobs = tuple(dispatch_service.recommend(assessment, frozenset(drift.domain), base_policy)
+                      for assessment in checked_live)
+    batch_hash = audit_service.data_fingerprint(documents)
+    order = reinforce_service.issue_order(
+        kernel, fitted_calibration, state, features.live, base_jobs,
+        flex_workers, as_of, batch_hash)
+    payload = order_payload(order)
+    payload['reconciliation'] = reconciliation_evidence(order)
+    return payload
+
+
+def reinforce_preview(flex_workers):
+    fixture = open_fixture()
+    return reinforce(fixture['records'], flex_workers, as_of=fixture['as_of'])

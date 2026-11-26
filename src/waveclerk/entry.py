@@ -7,7 +7,7 @@ import re
 from flask import Flask, jsonify, render_template, request
 from werkzeug.exceptions import BadRequest, RequestEntityTooLarge, UnsupportedMediaType
 
-from .pipeline import DISPLAY, MODULES, execute, open_fixture, preview
+from .pipeline import DISPLAY, MODULES, execute, open_fixture, preview, reinforce, reinforce_preview
 
 app = Flask(__name__, static_folder='web/static', template_folder='web/templates')
 app.config['MAX_CONTENT_LENGTH'] = 1_500_000
@@ -64,6 +64,33 @@ def run_case():
         return jsonify(code='INVALID_BATCH', message=str(issue)), 422
 
 
+def validate_flex(value):
+    if type(value) is not int or not 1 <= value <= 30:
+        raise ValueError('机动人数应是 1 到 30 的整数')
+    return value
+
+
+@app.post('/api/waveclerk/reinforce')
+def reinforce_case():
+    try:
+        posted = request.get_json()
+        if not isinstance(posted, dict) or posted.keys() - {'flex_workers', 'records', 'as_of'}:
+            raise ValueError('请求字段无效')
+        flex_workers = validate_flex(posted.get('flex_workers'))
+        if 'records' not in posted:
+            if 'as_of' in posted:
+                raise ValueError('导入截止日需要同时提交 records')
+            return jsonify(reinforce_preview(flex_workers))
+        as_of = posted.get('as_of', 96)
+        if type(as_of) is not int or not 91 <= as_of <= 3650:
+            raise ValueError('截止日须在第 91 日后')
+        return jsonify(reinforce(posted['records'], flex_workers, as_of=as_of))
+    except (BadRequest, UnsupportedMediaType):
+        return jsonify(code='INVALID_JSON', message='请提交 JSON 对象'), 400
+    except ValueError as issue:
+        return jsonify(code='INVALID_BATCH', message=str(issue)), 422
+
+
 @app.get('/api/waveclerk/stages/<stage>')
 def stage_detail(stage):
     mapping = {slug: index for index, (slug, _) in enumerate(MODULES)}
@@ -95,6 +122,10 @@ def main():
     runner.add_argument('--output', type=Path)
     server = commands.add_parser('serve', help='打开本地工作台')
     server.add_argument('--port', type=int, default=8000)
+    reinforce_cmd = commands.add_parser('reinforce', help='按机动人数出当班增援单')
+    reinforce_cmd.add_argument('--flex', type=int, required=True, help='主管填报的机动人数（1–30）')
+    reinforce_cmd.add_argument('--input', type=Path)
+    reinforce_cmd.add_argument('--output', type=Path)
     args = parser.parse_args()
     if args.command == 'serve':
         from waitress import serve
@@ -102,12 +133,20 @@ def main():
         serve(app, host='0.0.0.0', port=args.port, threads=4)
         return
     try:
-        capacity, strategy = validate_parameters(args.capacity, args.strategy)
-        if args.input:
-            custom = open_fixture(args.input)
-            result = execute(custom['records'], capacity, strategy, as_of=custom.get('as_of', 96))
+        if args.command == 'reinforce':
+            validate_flex(args.flex)
+            if args.input:
+                custom = open_fixture(args.input)
+                result = reinforce(custom['records'], args.flex, as_of=custom.get('as_of', 96))
+            else:
+                result = reinforce_preview(args.flex)
         else:
-            result = sample(capacity, strategy)
+            capacity, strategy = validate_parameters(args.capacity, args.strategy)
+            if args.input:
+                custom = open_fixture(args.input)
+                result = execute(custom['records'], capacity, strategy, as_of=custom.get('as_of', 96))
+            else:
+                result = sample(capacity, strategy)
     except (ValueError, OSError) as issue:
         parser.error(str(issue))
     output = json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) + '\n'

@@ -272,4 +272,54 @@ byId('restore').addEventListener('click',async () => {
         reset.disabled = false;
     }
 });
+
+const reinforceColumns = ['单号','作业区','处置','原因码','原拣货员','装车缓冲','原区间上沿',
+    '原本赶不上','增援人数','增援后拣货员','增援后区间上沿'];
+function renderReinforce(payload) {
+    byId('reinforce-panel').hidden = false;
+    byId('reinforce-stamp').textContent = payload.stamp;
+    byId('reinforce-kpis').replaceChildren(...payload.metrics.map(item => {
+        const kpi = node('div',undefined,'kpi');
+        kpi.append(node('dt',item.label),node('dd',item.value));
+        return kpi;
+    }));
+    const target = byId('reinforce-rows');
+    target.replaceChildren();
+    const table = node('table');
+    const head = table.createTHead().insertRow();
+    reinforceColumns.forEach(key => head.append(node('th',key)));
+    const body = table.createTBody();
+    payload.rows.forEach(record => {
+        const line = body.insertRow();
+        reinforceColumns.forEach(key => {
+            const cell = line.insertCell();
+            if (key === '处置') {
+                const badge = node('span',record[key],'state');
+                badge.dataset.state = record[key];
+                cell.append(badge);
+            } else {
+                cell.textContent = valueOf(record[key]);
+            }
+        });
+    });
+    target.append(table);
+}
+
+byId('reinforce-form').addEventListener('submit',async (event) => {
+    event.preventDefault();
+    const button = byId('reinforce-apply');
+    button.disabled = true;
+    try {
+        const flexWorkers = byId('flex-workers').valueAsNumber;
+        const body = {flex_workers:flexWorkers, ...currentBatch};
+        const payload = await requestResult('/reinforce',{
+            method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        renderReinforce(payload);
+        appendStatus(`增援单已生成：救回 ${payload.ledger['救回波次']} 个波次，机动结余 ${payload.ledger['机动结余']} 人`);
+    } catch (error) {
+        appendStatus(error.message,true);
+    } finally {
+        button.disabled = false;
+    }
+});
 prepare();

@@ -8,10 +8,11 @@
 docker compose up -d --build
 ```
 
-访问 `http://127.0.0.1:18640`。样例是可复算的模拟班次，涵盖正常历史、较迟回执、最新冲突版、缺测单和临时分区。
+访问 `http://127.0.0.1:18640`。样例是可复算的模拟班次，涵盖正常历史、较迟回执、最新冲突版、缺测单和临时分区。主管还可在工作台填报机动人数，生成当班增援单：只给原本赶不上、增员后完工区间上沿回到装车缓冲内的单派人，缺测或超训练域的单留人工。
 
 ```sh
 docker compose exec -T app python -m waveclerk.entry evaluate --capacity 8 --strategy focus
+docker compose exec -T app python -m waveclerk.entry reinforce --flex 8
 docker compose exec -T app pytest -q
 docker compose down --remove-orphans
 ```
